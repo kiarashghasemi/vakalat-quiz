@@ -45,14 +45,51 @@ function updateLawsCount() {
   if (el) el.textContent = n;
 }
 
+const LAW_NAMES = [
+  "آئین دادرسی دادگاه های عمومی و انقلاب (در امور مدنی)",
+  "آیین دادرسی دادگاه های عمومی و انقلاب (در امور مدنی)",
+  "تشکیلات وآئین دادرسی دیوان عدالت اداری",
+  "تشکیلات و آیین دادرسی دیوان عدالت اداری",
+  "افراز و فروش املاک مشاع",
+  "آئین دادرسی مدنی",
+  "آیین دادرسی مدنی",
+  "آئین دادرسی کیفری",
+  "آیین دادرسی کیفری",
+  "دیوان عدالت اداری",
+  "شوراهای حل اختلاف",
+  "مجازات اسلامی",
+  "حمایت خانواده",
+  "امور حسبی",
+  "ثبت احوال",
+  "قانون اساسی",
+  "تجارت",
+  "مدنی",
+  "اساسی",
+];
+
+function lawTitleFromText(p) {
+  const t = String(p).trim();
+  let m = t.match(/^(اصل\s*\d+\s*قانون\s*اساسی)/);
+  if (m) return m[1];
+  m = t.match(/^(اصل\s*\d+)/);
+  if (m) return m[1];
+  for (const name of LAW_NAMES) {
+    const re = new RegExp("^ماده\\s*\\d+\\s*قانون\\s+" + name.replace(/[()*+?]/g, "\\$&"), "i");
+    const hit = t.match(re);
+    if (hit) return hit[0];
+  }
+  m = t.match(/^(ماده\s*\d+\s*قانون\s+[^\d]{2,40}?)(?=\s+(?:دعاوی|دعوا|دعوای|هرگاه|هر |امور راجع|رسیدگی|اجاره|صلاحیت|حدود|ادعای|خوانده|خواهان|افراز|در صورتی|چنانچه|نسبت|اگر|کلیه|در کلیه))/);
+  if (m) return m[1].trim();
+  m = t.match(/^(ماده\s*\d+\s*قانون\s+\S+(?:\s+\S+){0,4})/);
+  if (m) return m[1].trim();
+  return "قانون مرتبط";
+}
+
 function parseLaws(raw="") {
   const text = String(raw || "").trim();
   if (!text || text === "قانون مرتبطی یافت نشد.") return [];
   const parts = text.split(/ارسال به قوانین من/g).map(s => s.trim()).filter(Boolean);
-  return parts.map(p => {
-    const m = p.match(/^(ماده\s*\d+[^\n]{0,80}|اصل\s*\d+[^\n]{0,80})/);
-    return { title: m ? m[1].trim() : "قانون مرتبط", body: p };
-  });
+  return parts.map(p => ({ title: lawTitleFromText(p), body: p }));
 }
 
 function lawId(item) {
