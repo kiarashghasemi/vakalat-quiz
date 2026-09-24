@@ -1,5 +1,7 @@
 const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const LETTERS = ["A","B","C","D"];
+const LAWS_KEY = "vakalat_my_laws_v1";
 
 const state = {
   lessons: [],
@@ -11,12 +13,16 @@ const state = {
   remain: 60,
   locked: false,
   score: {ok:0, no:0, skip:0},
+  shuffled: [],
+  correctLetter: "A",
+  lastView: "home",
 };
 
 const views = {
   home: $("#view-home"),
   articles: $("#view-articles"),
   quiz: $("#view-quiz"),
+  laws: $("#view-laws"),
 };
 
 function show(name) {
@@ -25,7 +31,74 @@ function show(name) {
   window.scrollTo({top:0, behavior:"smooth"});
 }
 
+function loadMine() {
+  try { return JSON.parse(localStorage.getItem(LAWS_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveMine(list) {
+  localStorage.setItem(LAWS_KEY, JSON.stringify(list));
+  updateLawsCount();
+}
+function updateLawsCount() {
+  const n = loadMine().length;
+  const el = $("#laws-count");
+  if (el) el.textContent = n;
+}
+
+function parseLaws(raw="") {
+  const text = String(raw || "").trim();
+  if (!text || text === "قانون مرتبطی یافت نشد.") return [];
+  const parts = text.split(/ارسال به قوانین من/g).map(s => s.trim()).filter(Boolean);
+  return parts.map(p => {
+    const m = p.match(/^(ماده\s*\d+[^\n]{0,80}|اصل\s*\d+[^\n]{0,80})/);
+    return { title: m ? m[1].trim() : "قانون مرتبط", body: p };
+  });
+}
+
+function lawId(item) {
+  return (item.title + "|" + item.body.slice(0,80)).slice(0,120);
+}
+
+function isSaved(item) {
+  const id = lawId(item);
+  return loadMine().some(x => x.id === id);
+}
+
+function toggleSaveLaw(item, btn) {
+  const id = lawId(item);
+  let list = loadMine();
+  const i = list.findIndex(x => x.id === id);
+  if (i >= 0) {
+    list.splice(i, 1);
+    if (btn) { btn.textContent = "ارسال به قوانین من"; btn.classList.remove("saved"); }
+  } else {
+    list.unshift({
+      id,
+      title: item.title,
+      body: item.body,
+      lesson: state.lesson ? state.lesson.name : "",
+      qid: state.queue[state.idx] ? state.queue[state.idx].id : "",
+      at: Date.now(),
+    });
+    if (btn) { btn.textContent = "ذخیره شد"; btn.classList.add("saved"); }
+  }
+  saveMine(list);
+}
+
+function shuffleOptions(q) {
+  const orig = LETTERS.map(k => ({ orig: k, text: q.options[k] }));
+  for (let i = orig.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [orig[i], orig[j]] = [orig[j], orig[i]];
+  }
+  const mapped = orig.map((o, i) => ({ letter: LETTERS[i], text: o.text, orig: o.orig }));
+  const correctOrig = (q.answer || "A").toUpperCase();
+  const correctLetter = mapped.find(x => x.orig === correctOrig).letter;
+  return { mapped, correctLetter };
+}
+
 async function boot() {
+  updateLawsCount();
   try {
     const res = await fetch("data/lessons.json");
     const data = await res.json();
@@ -56,7 +129,8 @@ async function openLesson(ls) {
   const res = await fetch(ls.file);
   state.lesson = await res.json();
   $("#lesson-title").textContent = state.lesson.name;
-  $("#lesson-sub").textContent = `${state.lesson.count} سوال در ${state.lesson.articles.length} ماده / موضوع`;
+  const hardN = state.lesson.articles.reduce((s,a) => s + (a.hard||0), 0);
+  $("#lesson-sub").textContent = `${state.lesson.count} سوال در ${state.lesson.articles.length} ماده · ${hardN} سوال سخت`;
   renderArticles();
   show("articles");
 }
@@ -94,13 +168,20 @@ function startQuiz(art, filter="all") {
   qs.sort((a,b) => diffOrder[a.difficulty] - diffOrder[b.difficulty]);
   if (filter === "hard") qs = qs.filter(q => q.difficulty === "سخت");
   if (filter === "easy") qs = qs.filter(q => q.difficulty === "آسان");
-  if (!qs.length) qs = [...art.questions];
+  if (!qs.length) {
+    alert("در این مجموعه سوال سختی ثبت نشده.");
+    return;
+  }
   state.queue = qs;
   state.idx = 0;
   state.score = {ok:0, no:0, skip:0};
-  $("#quiz-head").textContent = `${art.key} — ${art.title}`;
+  $("#quiz-head").textContent = `${art.key} — ${art.title}${filter==="hard" ? " (فقط سخت)" : ""}`;
   show("quiz");
   drawQuestion();
+}
+
+function allQuestions() {
+  return state.lesson.articles.flatMap(a => a.questions);
 }
 
 function drawQuestion() {
@@ -108,6 +189,9 @@ function drawQuestion() {
   state.locked = false;
   state.remain = 60;
   const q = state.queue[state.idx];
+  const sh = shuffleOptions(q);
+  state.shuffled = sh.mapped;
+  state.correctLetter = sh.correctLetter;
   const total = state.queue.length;
   $("#q-progress-label").textContent = `سوال ${state.idx+1} از ${total}`;
   $("#progress-bar").style.width = `${((state.idx)/total)*100}%`;
@@ -120,11 +204,12 @@ function drawQuestion() {
   $("#q-text").textContent = q.question;
   const box = $("#options");
   box.innerHTML = "";
-  ["A","B","C","D"].forEach(k => {
+  sh.mapped.forEach(o => {
     const b = document.createElement("button");
     b.className = "opt";
-    b.innerHTML = `<b>${k}</b> ${q.options[k]}`;
-    b.onclick = () => lock(k);
+    b.dataset.letter = o.letter;
+    b.innerHTML = `<b>${o.letter}</b> ${o.text}`;
+    b.onclick = () => lock(o.letter);
     box.appendChild(b);
   });
   $("#result").classList.add("hidden");
@@ -146,10 +231,12 @@ function lock(choice) {
   state.locked = true;
   clearInterval(state.timer);
   const q = state.queue[state.idx];
-  const correct = (q.answer || "").toUpperCase();
-  const opts = $$("#options .opt");
-  opts.forEach((el, i) => {
-    const key = ["A","B","C","D"][i];
+  const correct = state.correctLetter;
+  const correctText = (state.shuffled.find(x => x.letter === correct) || {}).text
+    || q.answer_text
+    || q.options[(q.answer||"A").toUpperCase()];
+  $$("#options .opt").forEach(el => {
+    const key = el.dataset.letter;
     if (key === correct) el.classList.add("right");
     if (choice && key === choice && choice !== correct) el.classList.add("wrong");
     if (choice && key === choice) el.classList.add("picked");
@@ -171,12 +258,27 @@ function lock(choice) {
     verdict = "غلط بود";
     cls = "no";
   }
+
+  const laws = parseLaws(q.laws);
+  const lawsHtml = laws.map((item, i) => {
+    const saved = isSaved(item);
+    return `<div class="law-card">
+      <div class="law-title">${escapeHtml(item.title)}</div>
+      <div class="law-body">${escapeHtml(item.body)}</div>
+      <button class="law-save ${saved ? "saved" : ""}" data-law="${i}">${saved ? "ذخیره شد" : "ارسال به قوانین من"}</button>
+    </div>`;
+  }).join("");
+
   box.innerHTML = `
     <div class="verdict ${cls}">${verdict}</div>
-    <div>گزینه صحیح: <b>${correct}</b> — ${q.answer_text || q.options[correct] || ""}</div>
-    <div class="explain"><b>پاسخنامه:</b><br>${escapeHtml(q.explain)}</div>
-    ${q.laws ? `<div class="laws"><b>قوانین مرتبط:</b><br>${escapeHtml(q.laws)}</div>` : ""}
+    <div>گزینه صحیح در این دور: <b>${correct}</b> — ${escapeHtml(correctText || "")}</div>
+    <div class="explain"><b>پاسخ تشریحی:</b><br>${escapeHtml(q.explain)}</div>
+    ${lawsHtml ? `<div class="laws">${lawsHtml}</div>` : ""}
   `;
+  box.querySelectorAll("[data-law]").forEach(btn => {
+    btn.onclick = () => toggleSaveLaw(laws[Number(btn.dataset.law)], btn);
+  });
+
   $("#btn-reveal").classList.add("hidden");
   $("#btn-next").classList.remove("hidden");
   $("#btn-next").textContent = state.idx + 1 >= state.queue.length ? "پایان و نتیجه" : "سوال بعدی";
@@ -200,11 +302,36 @@ function finish() {
   $("#options").innerHTML = "";
   $("#result").classList.remove("hidden");
   $("#result").innerHTML = `
-    <div class="verdict ok">نتیجه این ماده</div>
+    <div class="verdict ok">نتیجه این مجموعه</div>
     <p>درست: ${s.ok} · غلط: ${s.no} · بدون پاسخ: ${s.skip} · از ${n} سوال</p>
   `;
   $("#btn-next").classList.add("hidden");
   $("#btn-reveal").classList.add("hidden");
+}
+
+function renderMyLaws() {
+  const list = loadMine();
+  const box = $("#my-laws-list");
+  if (!list.length) {
+    box.innerHTML = `<p class="sub">هنوز قانونی ذخیره نکرده‌ای. بعد از دیدن پاسخ، دکمه قرمز «ارسال به قوانین من» را بزن.</p>`;
+    return;
+  }
+  box.innerHTML = list.map((item, i) => `
+    <div class="law-mine">
+      <h3>${escapeHtml(item.title)}</h3>
+      <div class="meta" style="margin:6px 0">${item.lesson || ""}</div>
+      <p>${escapeHtml(item.body)}</p>
+      <button class="btn" data-del="${i}" style="margin-top:10px">حذف</button>
+    </div>
+  `).join("");
+  box.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = () => {
+      const arr = loadMine();
+      arr.splice(Number(btn.dataset.del), 1);
+      saveMine(arr);
+      renderMyLaws();
+    };
+  });
 }
 
 function escapeHtml(str="") {
@@ -219,8 +346,26 @@ $("#btn-next").onclick = nextQ;
 $("#btn-all").onclick = () => startQuiz({
   key: "همه مواد",
   title: state.lesson.name,
-  questions: state.lesson.articles.flatMap(a => a.questions),
+  questions: allQuestions(),
 });
+$("#btn-all-hard").onclick = () => startQuiz({
+  key: "سوالات سخت",
+  title: state.lesson.name,
+  questions: allQuestions(),
+}, "hard");
+
+$("#btn-my-laws").onclick = () => {
+  state.lastView = [...document.querySelectorAll("main > section")].find(s => !s.classList.contains("hidden")).id.replace("view-","");
+  renderMyLaws();
+  show("laws");
+};
+$("#btn-back-from-laws").onclick = () => show(state.lastView || "home");
+$("#btn-clear-laws").onclick = () => {
+  if (confirm("همه قوانین ذخیره‌شده پاک شود؟")) {
+    saveMine([]);
+    renderMyLaws();
+  }
+};
 
 $("#xlsx-input").addEventListener("change", async (e) => {
   const file = e.target.files[0];

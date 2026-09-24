@@ -17,7 +17,10 @@
         <div class="sub">سوالات دسته‌بندی‌شده بر اساس ماده</div>
       </div>
     </div>
-    <div class="sub">۶۰ ثانیه برای هر سوال</div>
+    <div class="header-actions">
+      <button class="btn" id="btn-my-laws">قوانین من <span class="badge-count" id="laws-count">0</span></button>
+      <div class="sub">۶۰ ثانیه برای هر سوال</div>
+    </div>
   </header>
 
   <main class="wrap">
@@ -38,6 +41,7 @@
       <div class="toolbar">
         <button class="btn ghost" id="btn-back-home">← درس‌ها</button>
         <button class="btn primary" id="btn-all">شروع همه سوالات درس</button>
+        <button class="btn" id="btn-all-hard">فقط سوالات سخت این مجموعه</button>
         <select id="sort-mode" class="btn">
           <option value="hard">مرتب‌سازی: سخت‌تر اول</option>
           <option value="count">مرتب‌سازی: تعداد سوال</option>
@@ -49,6 +53,18 @@
         <p id="lesson-sub"></p>
       </div>
       <div id="articles" class="articles"></div>
+    </section>
+
+    <section id="view-laws" class="hidden">
+      <div class="toolbar">
+        <button class="btn ghost" id="btn-back-from-laws">← برگشت</button>
+        <button class="btn" id="btn-clear-laws">پاک کردن همه</button>
+      </div>
+      <div class="hero" style="padding:18px 22px">
+        <h1 style="font-size:22px">قوانین من</h1>
+        <p>موادی که هنگام تست با دکمه «ارسال به قوانین من» ذخیره کرده‌ای. روی همین مرورگر می‌ماند.</p>
+      </div>
+      <div id="my-laws-list"></div>
     </section>
 
     <section id="view-quiz" class="hidden">
