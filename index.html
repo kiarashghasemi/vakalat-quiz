@@ -107,6 +107,7 @@
       <div class="hero">
         <h1 style="font-size:22px">آزمون بسته</h1>
         <p id="exam-cycle-info"></p>
+        <div id="exam-level-info" class="explain" style="margin:10px 0"></div>
         <div class="toolbar">
           <label>سطح</label>
           <select id="exam-diff" class="btn">
@@ -129,8 +130,12 @@
             <option>30</option>
             <option>40</option>
           </select>
-          <button class="btn primary" id="btn-start-exam">شروع آزمون</button>
         </div>
+        <div class="toolbar">
+          <label class="btn"><input type="checkbox" id="exam-similar" checked> سوالات مشابه هم بیاید</label>
+          <label class="btn"><input type="checkbox" id="exam-fill"> اگر به حدنصاب نرسید از سطح‌های دیگر پر شود</label>
+        </div>
+        <button class="btn primary" id="btn-start-exam">شروع آزمون</button>
       </div>
     </section>
 

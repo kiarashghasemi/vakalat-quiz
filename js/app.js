@@ -573,12 +573,48 @@ function allPackQuestions() {
   return state.lesson.articles.flatMap(a => a.questions);
 }
 
-function openExamSetup() {
+function isSimilarQ(q) {
+  return !!(q.is_similar || (q.similar_count && q.similar_count > 1));
+}
+
+function examPool(diff, includeSimilar) {
+  let pool = allPackQuestions();
+  if (diff !== "all") pool = pool.filter(q => q.difficulty === diff);
+  if (!includeSimilar) pool = pool.filter(q => !isSimilarQ(q));
+  return pool;
+}
+
+function updateExamInfo() {
+  if (!state.lesson) return;
+  const diff = $("#exam-diff").value;
+  const n = Number($("#exam-n").value);
+  const includeSimilar = $("#exam-similar").checked;
+  const fill = $("#exam-fill").checked;
   const { p } = packProg();
-  const all = allPackQuestions();
   const used = new Set(p.examUsed || []);
-  const left = all.filter(q => !used.has(String(q.id)));
-  $("#exam-cycle-info").textContent = `از این بسته ${all.length} سوال است. در این دور ${used.size} تا در آزمون آمده. باقی‌مانده چرخه: ${left.length}. اگر باقی کمتر از تعداد درخواستی باشد، چرخه از نو می‌شود.`;
+  const all = allPackQuestions();
+  const level = diff === "all" ? all : all.filter(q => q.difficulty === diff);
+  const sim = level.filter(isSimilarQ);
+  const pool = examPool(diff, includeSimilar);
+  const fresh = pool.filter(q => !used.has(String(q.id)));
+  const others = all.filter(q => (diff === "all" || q.difficulty !== diff) && (includeSimilar || !isSimilarQ(q)));
+  const othersFresh = others.filter(q => !used.has(String(q.id)));
+  const have = fresh.length + (fill ? othersFresh.length : 0);
+  $("#exam-cycle-info").textContent = `کل بسته ${all.length} سوال · در این چرخه آزمون ${used.size} سوال آمده · باقی کل چرخه ${all.length - used.size}`;
+  $("#exam-level-info").innerHTML = `
+    سطح «${diff === "all" ? "ترکیبی" : diff}»: <b>${level.length}</b> سوال
+    · مشابه هم: <b>${sim.length}</b>
+    · غیرمشابه: <b>${level.length - sim.length}</b>
+    · با فیلتر فعلی قابل استفاده: <b>${pool.length}</b>
+    · هنوز در این چرخه نیامده: <b>${fresh.length}</b>
+    ${fresh.length < n ? (fill
+      ? `<br>به ${n} نمی‌رسد. چون پر کردن از سطح دیگر روشن است، از بقیه سطح‌ها تا ${Math.min(n, have)} تا برداشته می‌شود.`
+      : `<br>به ${n} نمی‌رسد (${fresh.length} تا). اگر «از سطح‌های دیگر پر شود» را نزنی، آزمون با همین ${fresh.length} سوال شروع می‌شود.`) : ""}
+  `;
+}
+
+function openExamSetup() {
+  updateExamInfo();
   show("exam-setup");
 }
 
@@ -586,21 +622,31 @@ function startExam() {
   const diff = $("#exam-diff").value;
   const n = Number($("#exam-n").value);
   const min = Number($("#exam-min").value);
+  const includeSimilar = $("#exam-similar").checked;
+  const fill = $("#exam-fill").checked;
   const { all, p } = packProg();
-  let pool = allPackQuestions();
-  if (diff !== "all") pool = pool.filter(q => q.difficulty === diff);
-  let used = new Set(p.examUsed || []);
+  const used = new Set(p.examUsed || []);
+  let pool = examPool(diff, includeSimilar);
   let fresh = pool.filter(q => !used.has(String(q.id)));
-  if (fresh.length < n) {
-    // new cycle for this difficulty leftover
-    const still = pool.filter(q => !fresh.includes(q));
-    // reset used for those already consumed if not enough
-    p.examUsed = p.examUsed.filter(id => !pool.some(q => String(q.id)===id));
-    fresh = pool;
+  if (!fresh.length && pool.length) {
+    p.examUsed = (p.examUsed || []).filter(id => !pool.some(q => String(q.id) === id));
     all[state.packId] = p; saveProg(all);
+    fresh = pool.slice();
   }
-  const pick = fresh.slice(0, n);
-  if (!pick.length) { alert("سوالی برای این سطح نماند."); return; }
+  let pick = fresh.slice(0, n);
+  if (pick.length < n && fill) {
+    let extra = allPackQuestions().filter(q => {
+      if (pick.some(x => String(x.id) === String(q.id))) return false;
+      if (!includeSimilar && isSimilarQ(q)) return false;
+      if (diff !== "all" && q.difficulty === diff) return false;
+      return !used.has(String(q.id)) || true;
+    });
+    extra = extra.filter(q => !pick.some(x => String(x.id) === String(q.id)));
+    const unusedExtra = extra.filter(q => !used.has(String(q.id)));
+    const restExtra = extra.filter(q => used.has(String(q.id)));
+    pick = pick.concat(unusedExtra, restExtra).slice(0, n);
+  }
+  if (!pick.length) { alert("با این فیلتر سوالی نماند."); return; }
   state.mode = "exam";
   state.examAnswers = [];
   state.examRemain = min * 60;
@@ -658,6 +704,10 @@ $("#btn-back-lessons").onclick = () => show("home");
 $("#btn-back-home").onclick = () => { clearInterval(state.timer); show("packs"); };
 $("#btn-back-arts").onclick = () => { clearInterval(state.timer); state.mode="practice"; show("articles"); renderArticles(); };
 $("#btn-exam").onclick = openExamSetup;
+["exam-diff","exam-n","exam-similar","exam-fill"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("change", updateExamInfo);
+});
 $("#btn-back-exam-setup").onclick = () => show("articles");
 $("#btn-back-from-exam-res").onclick = () => { renderArticles(); show("articles"); };
 $("#btn-start-exam").onclick = startExam;
