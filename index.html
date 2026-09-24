@@ -18,10 +18,32 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="btn" id="btn-important">سوالات مهم <span class="badge-count" id="imp-count">0</span></button>
       <button class="btn" id="btn-my-laws">قوانین من <span class="badge-count" id="laws-count">0</span></button>
-      <div class="sub">۶۰ ثانیه برای هر سوال</div>
+      <button class="btn" id="btn-settings">تنظیمات</button>
     </div>
   </header>
+
+  <div id="settings-panel" class="settings-panel hidden">
+    <h3>تنظیمات</h3>
+    <div class="settings-row">
+      <label>اندازه قلم</label>
+      <button class="btn" data-fs="15">کوچک</button>
+      <button class="btn" data-fs="17">متوسط</button>
+      <button class="btn" data-fs="19">بزرگ</button>
+      <button class="btn" data-fs="22">خیلی بزرگ</button>
+    </div>
+    <div class="settings-row">
+      <label>رنگ زمینه</label>
+      <div class="theme-dots">
+        <button class="theme-dot" data-theme="paper" title="کاغذی" style="background:#f4f1ea"></button>
+        <button class="theme-dot" data-theme="sepia" title="نخودی" style="background:#f3e7d3"></button>
+        <button class="theme-dot" data-theme="green" title="سبز" style="background:#047857"></button>
+        <button class="theme-dot" data-theme="navy" title="سرمه‌ای" style="background:#0f172a"></button>
+        <button class="theme-dot" data-theme="dark" title="تیره" style="background:#121212"></button>
+      </div>
+    </div>
+  </div>
 
   <main class="wrap">
     <section id="view-home">
@@ -53,6 +75,19 @@
         <p id="lesson-sub"></p>
       </div>
       <div id="articles" class="articles"></div>
+    </section>
+
+    <section id="view-important" class="hidden">
+      <div class="toolbar">
+        <button class="btn ghost" id="btn-back-from-imp">← برگشت</button>
+        <button class="btn primary" id="btn-quiz-imp">شروع تست سوالات مهم</button>
+        <button class="btn" id="btn-clear-imp">پاک کردن همه</button>
+      </div>
+      <div class="hero" style="padding:18px 22px">
+        <h1 style="font-size:22px">سوالات مهم</h1>
+        <p>سوال‌هایی که با ستاره علامت زده‌ای. بعداً از همین‌جا دوباره تست بزن.</p>
+      </div>
+      <div id="imp-list"></div>
     </section>
 
     <section id="view-laws" class="hidden">
@@ -90,6 +125,7 @@
         <div id="result" class="result-box hidden"></div>
         <div class="toolbar" style="margin-top:16px">
           <button class="btn" id="btn-prev">سوال قبلی</button>
+          <button class="btn" id="btn-star">☆ سوال مهم</button>
           <button class="btn" id="btn-reveal">نمایش پاسخ</button>
           <button class="btn primary hidden" id="btn-next">سوال بعدی</button>
         </div>

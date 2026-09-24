@@ -2,6 +2,8 @@ const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
 const LETTERS = ["A","B","C","D"];
 const LAWS_KEY = "vakalat_my_laws_v1";
+const IMP_KEY = "vakalat_important_v1";
+const SET_KEY = "vakalat_settings_v1";
 
 const state = {
   lessons: [],
@@ -25,11 +27,14 @@ const views = {
   articles: $("#view-articles"),
   quiz: $("#view-quiz"),
   laws: $("#view-laws"),
+  important: $("#view-important"),
 };
 
 function show(name) {
-  Object.values(views).forEach(v => v.classList.add("hidden"));
+  Object.values(views).forEach(v => v && v.classList.add("hidden"));
   views[name].classList.remove("hidden");
+  const wrap = document.querySelector("main.wrap");
+  if (wrap) wrap.classList.toggle("wide", name === "quiz");
   window.scrollTo({top:0, behavior:"smooth"});
 }
 
@@ -45,6 +50,64 @@ function updateLawsCount() {
   const n = loadMine().length;
   const el = $("#laws-count");
   if (el) el.textContent = n;
+}
+
+function loadImportant() {
+  try { return JSON.parse(localStorage.getItem(IMP_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveImportant(list) {
+  localStorage.setItem(IMP_KEY, JSON.stringify(list));
+  updateImpCount();
+}
+function updateImpCount() {
+  const el = $("#imp-count");
+  if (el) el.textContent = loadImportant().length;
+}
+function isImportant(id) {
+  return loadImportant().some(x => String(x.id) === String(id));
+}
+function toggleImportant(q) {
+  if (!q) return;
+  let list = loadImportant();
+  const i = list.findIndex(x => String(x.id) === String(q.id));
+  if (i >= 0) list.splice(i, 1);
+  else list.unshift({
+    id: q.id,
+    question: q.question,
+    options: q.options,
+    answer: q.answer,
+    answer_text: q.answer_text,
+    explain: q.explain,
+    laws: q.laws,
+    article: q.article,
+    article_title: q.article_title,
+    difficulty: q.difficulty,
+    is_similar: q.is_similar,
+    similar_count: q.similar_count,
+    lesson: state.lesson ? state.lesson.name : "",
+  });
+  saveImportant(list);
+  syncStarBtn();
+}
+function syncStarBtn() {
+  const btn = $("#btn-star");
+  if (!btn || !state.queue[state.idx]) return;
+  const on = isImportant(state.queue[state.idx].id);
+  btn.textContent = on ? "★ سوال مهم" : "☆ سوال مهم";
+  btn.classList.toggle("on", on);
+}
+
+function loadSettings() {
+  try { return Object.assign({fs:"17", theme:"paper"}, JSON.parse(localStorage.getItem(SET_KEY)||"{}")); }
+  catch { return {fs:"17", theme:"paper"}; }
+}
+function applySettings() {
+  const s = loadSettings();
+  document.documentElement.style.setProperty("--fs", s.fs + "px");
+  document.documentElement.style.setProperty("--qfs", (Number(s.fs) + 3) + "px");
+  document.documentElement.setAttribute("data-theme", s.theme === "paper" ? "" : s.theme);
+  if (s.theme === "paper") document.documentElement.removeAttribute("data-theme");
 }
 
 const LAW_NAMES = [
@@ -137,7 +200,9 @@ function shuffleOptions(q) {
 }
 
 async function boot() {
+  applySettings();
   updateLawsCount();
+  updateImpCount();
   try {
     const res = await fetch("data/lessons.json");
     const data = await res.json();
@@ -262,6 +327,7 @@ function drawQuestion() {
   $("#btn-next").classList.add("hidden");
   $("#btn-reveal").classList.remove("hidden");
   syncPrevButtons();
+  syncStarBtn();
   state.timer = setInterval(() => {
     state.remain -= 1;
     $("#timer").textContent = String(state.remain);
@@ -420,6 +486,67 @@ $("#btn-next").onclick = nextQ;
 $("#btn-next-top").onclick = nextQ;
 $("#btn-prev").onclick = prevQ;
 $("#btn-prev-top").onclick = prevQ;
+$("#btn-star").onclick = () => toggleImportant(state.queue[state.idx]);
+
+$("#btn-settings").onclick = (e) => {
+  e.stopPropagation();
+  $("#settings-panel").classList.toggle("hidden");
+};
+document.addEventListener("click", (e) => {
+  const pan = $("#settings-panel");
+  if (!pan || pan.classList.contains("hidden")) return;
+  if (pan.contains(e.target) || e.target.id === "btn-settings") return;
+  pan.classList.add("hidden");
+});
+$$("[data-fs]").forEach(b => b.onclick = () => {
+  const s = loadSettings(); s.fs = b.dataset.fs;
+  localStorage.setItem(SET_KEY, JSON.stringify(s));
+  applySettings();
+});
+$$("[data-theme]").forEach(b => b.onclick = () => {
+  const s = loadSettings(); s.theme = b.dataset.theme;
+  localStorage.setItem(SET_KEY, JSON.stringify(s));
+  applySettings();
+});
+
+$("#btn-important").onclick = () => {
+  state.lastView = [...document.querySelectorAll("main > section")].find(s => !s.classList.contains("hidden"))?.id.replace("view-","") || "home";
+  renderImportant();
+  show("important");
+};
+$("#btn-back-from-imp").onclick = () => show(state.lastView || "home");
+$("#btn-quiz-imp").onclick = () => {
+  const list = loadImportant();
+  if (!list.length) { alert("هنوز سوال مهمی ذخیره نکرده‌ای."); return; }
+  startQuiz({ key: "سوالات مهم", title: "مرور ستاره‌دارها", questions: list });
+};
+$("#btn-clear-imp").onclick = () => {
+  if (confirm("همه سوالات مهم پاک شود؟")) { saveImportant([]); renderImportant(); }
+};
+
+function renderImportant() {
+  const list = loadImportant();
+  const box = $("#imp-list");
+  if (!list.length) {
+    box.innerHTML = `<p class="sub">ستاره هیچ سوالی را نزده‌ای. وسط تست دکمه «سوال مهم» را بزن.</p>`;
+    return;
+  }
+  box.innerHTML = list.map((q,i) => `
+    <div class="law-mine">
+      <div class="meta">${q.article || ""} · ${q.difficulty || ""}</div>
+      <p style="margin-top:6px">${escapeHtml(q.question)}</p>
+      <button class="btn" data-impdel="${i}" style="margin-top:10px">حذف از مهم‌ها</button>
+    </div>
+  `).join("");
+  box.querySelectorAll("[data-impdel]").forEach(btn => {
+    btn.onclick = () => {
+      const arr = loadImportant();
+      arr.splice(Number(btn.dataset.impdel), 1);
+      saveImportant(arr);
+      renderImportant();
+    };
+  });
+}
 $("#btn-all").onclick = () => startQuiz({
   key: "همه مواد",
   title: state.lesson.name,
