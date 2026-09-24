@@ -59,11 +59,24 @@
       <div id="lessons" class="lessons"></div>
     </section>
 
+    <section id="view-packs" class="hidden">
+      <div class="toolbar">
+        <button class="btn ghost" id="btn-back-lessons">← درس‌ها</button>
+      </div>
+      <div class="hero" style="padding:18px 22px">
+        <h1 id="lesson-packs-title" style="font-size:22px">درس</h1>
+        <p>بسته را باز کن. بعداً بسته‌های بعدی همین‌جا اضافه می‌شوند.</p>
+      </div>
+      <div id="packs" class="articles"></div>
+    </section>
+
     <section id="view-articles" class="hidden">
       <div class="toolbar">
-        <button class="btn ghost" id="btn-back-home">← درس‌ها</button>
-        <button class="btn primary" id="btn-all">شروع همه سوالات درس</button>
-        <button class="btn" id="btn-all-hard">فقط سوالات سخت این مجموعه</button>
+        <button class="btn ghost" id="btn-back-home">← بسته‌ها</button>
+        <button class="btn primary" id="btn-exam">آزمون</button>
+        <button class="btn" id="btn-all">همه سوالات بسته</button>
+        <button class="btn" id="btn-all-hard">فقط سخت‌ها</button>
+        <button class="btn" id="btn-reset-pack">ریست پیشرفت بسته</button>
         <select id="sort-mode" class="btn">
           <option value="hard">مرتب‌سازی: سخت‌تر اول</option>
           <option value="count">مرتب‌سازی: تعداد سوال</option>
@@ -71,10 +84,65 @@
         </select>
       </div>
       <div class="hero" style="padding:18px 22px">
-        <h1 id="lesson-title" style="font-size:22px">درس</h1>
+        <h1 id="lesson-title" style="font-size:22px">بسته</h1>
         <p id="lesson-sub"></p>
+        <div class="toolbar" style="margin:10px 0 0">
+          <label class="sub">تعداد تکرار لایتنر این بسته</label>
+          <select id="pack-repeats" class="btn">
+            <option value="3">۳ بار</option>
+            <option value="5">۵ بار</option>
+            <option value="8" selected>۸ بار</option>
+            <option value="10">۱۰ بار</option>
+          </select>
+        </div>
       </div>
       <div id="articles" class="articles"></div>
+    </section>
+
+    <section id="view-exam-setup" class="hidden">
+      <div class="toolbar">
+        <button class="btn ghost" id="btn-back-exam-setup">← بسته</button>
+        <button class="btn" id="btn-reset-exam">ریست چرخه آزمون</button>
+      </div>
+      <div class="hero">
+        <h1 style="font-size:22px">آزمون بسته</h1>
+        <p id="exam-cycle-info"></p>
+        <div class="toolbar">
+          <label>سطح</label>
+          <select id="exam-diff" class="btn">
+            <option value="سخت">سخت</option>
+            <option value="متوسط">متوسط</option>
+            <option value="آسان">آسان</option>
+            <option value="all">ترکیبی</option>
+          </select>
+          <label>تعداد سوال</label>
+          <select id="exam-n" class="btn">
+            <option>10</option>
+            <option selected>20</option>
+            <option>30</option>
+            <option>40</option>
+          </select>
+          <label>وقت (دقیقه)</label>
+          <select id="exam-min" class="btn">
+            <option>10</option>
+            <option selected>20</option>
+            <option>30</option>
+            <option>40</option>
+          </select>
+          <button class="btn primary" id="btn-start-exam">شروع آزمون</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-exam-result" class="hidden">
+      <div class="toolbar">
+        <button class="btn ghost" id="btn-back-from-exam-res">← بسته</button>
+      </div>
+      <div class="hero" style="padding:18px 22px">
+        <h1 style="font-size:22px">پاسخنامه آزمون</h1>
+        <p id="exam-score"></p>
+      </div>
+      <div id="exam-sheet"></div>
     </section>
 
     <section id="view-important" class="hidden">

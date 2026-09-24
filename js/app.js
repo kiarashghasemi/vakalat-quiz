@@ -20,15 +20,55 @@ const state = {
   lastView: "home",
   originalCount: 0,
   retryNote: false,
+  lessonMeta: null,
+  pack: null,
+  packId: null,
+  mode: "practice",
+  examAnswers: [],
+  examRemain: 0,
 };
 
 const views = {
   home: $("#view-home"),
+  packs: $("#view-packs"),
   articles: $("#view-articles"),
   quiz: $("#view-quiz"),
   laws: $("#view-laws"),
   important: $("#view-important"),
+  "exam-setup": $("#view-exam-setup"),
+  "exam-result": $("#view-exam-result"),
 };
+const PROG_KEY = "vakalat_pack_progress_v1";
+
+function loadProg() {
+  try { return JSON.parse(localStorage.getItem(PROG_KEY) || "{}"); }
+  catch { return {}; }
+}
+function saveProg(all) { localStorage.setItem(PROG_KEY, JSON.stringify(all)); }
+function packProg() {
+  const all = loadProg();
+  const id = state.packId || "default";
+  if (!all[id]) all[id] = { articleStats: {}, qStats: {}, examUsed: [], repeats: 8 };
+  if (!all[id].articleStats) all[id].articleStats = {};
+  if (!all[id].qStats) all[id].qStats = {};
+  if (!all[id].examUsed) all[id].examUsed = [];
+  if (!all[id].repeats) all[id].repeats = 8;
+  return { all, p: all[id], id };
+}
+function recordAnswer(qid, artKey, ok) {
+  if (!state.packId) return;
+  const { all, p } = packProg();
+  const a = p.articleStats[artKey] || { correct: 0, total: 0 };
+  a.total += 1;
+  if (ok) a.correct += 1;
+  p.articleStats[artKey] = a;
+  const q = p.qStats[qid] || { streak: 0, times: 0 };
+  q.times += 1;
+  q.streak = ok ? (q.streak || 0) + 1 : 0;
+  p.qStats[qid] = q;
+  all[state.packId] = p;
+  saveProg(all);
+}
 
 function show(name) {
   Object.values(views).forEach(v => v && v.classList.add("hidden"));
@@ -219,22 +259,44 @@ function renderLessons() {
   state.lessons.forEach(ls => {
     const el = document.createElement("div");
     el.className = "card" + (ls.ready ? "" : " disabled");
+    const packs = (ls.packs || []).length;
     el.innerHTML = `
       <h3>${ls.name}</h3>
       <div class="meta">
         <span class="pill">${ls.ready ? ls.count + " سوال" : "فایل اکسل را اضافه کنید"}</span>
+        ${packs ? `<span class="pill">${packs} بسته</span>` : ""}
       </div>`;
     if (ls.ready) el.onclick = () => openLesson(ls);
     box.appendChild(el);
   });
 }
 
-async function openLesson(ls) {
-  const res = await fetch(ls.file);
+function openLesson(ls) {
+  state.lessonMeta = ls;
+  $("#lesson-packs-title").textContent = ls.name;
+  const box = $("#packs");
+  box.innerHTML = "";
+  (ls.packs || []).forEach(pk => {
+    const el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = `<h3>${pk.name}</h3><div class="meta"><span class="pill">${pk.count} سوال</span></div>`;
+    el.onclick = () => openPack(pk);
+    box.appendChild(el);
+  });
+  show("packs");
+}
+
+async function openPack(pk) {
+  const res = await fetch(pk.file);
   state.lesson = await res.json();
-  $("#lesson-title").textContent = state.lesson.name;
+  state.pack = pk;
+  state.packId = pk.id;
+  $("#lesson-title").textContent = `${state.lessonMeta ? state.lessonMeta.name + " / " : ""}${pk.name}`;
   const hardN = state.lesson.articles.reduce((s,a) => s + (a.hard||0), 0);
-  $("#lesson-sub").textContent = `${state.lesson.count} سوال در ${state.lesson.articles.length} ماده · ${hardN} سوال سخت`;
+  $("#lesson-sub").textContent = `${state.lesson.count} سوال در ${state.lesson.articles.length} ماده · ${hardN} سخت`;
+  const { p } = packProg();
+  const sel = $("#pack-repeats");
+  if (sel) sel.value = String(p.repeats || 8);
   renderArticles();
   show("articles");
 }
@@ -247,10 +309,17 @@ function renderArticles() {
   if (sort === "hard") arts.sort((a,b) => (b.hard-a.hard) || (b.medium-a.medium));
   if (sort === "count") arts.sort((a,b) => b.count - a.count);
   if (sort === "name") arts.sort((a,b) => a.key.localeCompare(b.key, "fa"));
+  const { p } = packProg();
+  const repeats = p.repeats || 8;
 
   arts.forEach(art => {
+    const st = p.articleStats[art.key] || { correct: 0, total: 0 };
+    const mastered = art.questions.filter(q => (p.qStats[q.id] || {}).streak >= repeats).length;
     const el = document.createElement("div");
     el.className = "card";
+    const done = st.total > 0
+      ? `<span class="pill easy">زده شده ${st.correct}/${st.total} · لایتنر ${mastered}/${art.count}</span>`
+      : `<span class="pill">هنوز نزده‌ای</span>`;
     el.innerHTML = `
       <h3>${art.key}</h3>
       <div class="meta" style="margin-bottom:8px">${art.title}</div>
@@ -259,6 +328,7 @@ function renderArticles() {
         ${art.hard ? `<span class="pill hard">سخت ${art.hard}</span>` : ""}
         ${art.medium ? `<span class="pill mid">متوسط ${art.medium}</span>` : ""}
         ${art.easy ? `<span class="pill easy">آسان ${art.easy}</span>` : ""}
+        ${done}
       </div>`;
     el.onclick = () => startQuiz(art);
     box.appendChild(el);
@@ -276,6 +346,7 @@ function startQuiz(art, filter="all") {
     alert("در این مجموعه سوال سختی ثبت نشده.");
     return;
   }
+  if (state.mode !== "exam") state.mode = "practice";
   state.queue = qs;
   state.idx = 0;
   state.originalCount = qs.length;
@@ -292,7 +363,7 @@ function allQuestions() {
 function drawQuestion() {
   clearInterval(state.timer);
   state.locked = false;
-  state.remain = 60;
+  if (state.mode !== "exam") state.remain = 60;
   const q = state.queue[state.idx];
   const sh = shuffleOptions(q);
   state.shuffled = sh.mapped;
@@ -304,10 +375,16 @@ function drawQuestion() {
     ? `سوال ${state.idx+1} از ${total} (اصلی ${state.originalCount} + تکرار ${extra})`
     : `سوال ${state.idx+1} از ${total}`;
   $("#progress-bar").style.width = `${((state.idx)/total)*100}%`;
-  $("#timer").textContent = "60";
-  $("#timer").className = "timer";
+  if (state.mode === "exam") {
+    $("#timer").textContent = formatRemain(state.examRemain);
+    $("#timer").className = "timer";
+  } else {
+    $("#timer").textContent = "60";
+    $("#timer").className = "timer";
+  }
   $("#q-badges").innerHTML = `
     <span class="pill ${q.difficulty==="سخت"?"hard":q.difficulty==="متوسط"?"mid":"easy"}">${q.difficulty}</span>
+    ${q.source ? `<span class="pill">${q.source}</span>` : ""}
     ${q._retry ? `<span class="pill hard">تکرار سوال غلط</span>` : ""}
     ${q.is_similar ? `<span class="pill sim">شبیه هم · ${q.similar_count} مورد</span>` : ""}
   `;
@@ -328,6 +405,19 @@ function drawQuestion() {
   $("#btn-reveal").classList.remove("hidden");
   syncPrevButtons();
   syncStarBtn();
+  if (state.mode === "exam") {
+    $("#btn-reveal").classList.add("hidden");
+    state.timer = setInterval(() => {
+      state.examRemain -= 1;
+      $("#timer").textContent = formatRemain(state.examRemain);
+      if (state.examRemain <= 60) $("#timer").classList.add("warn");
+      if (state.examRemain <= 0) {
+        $("#timer").classList.add("dead");
+        finishExam(true);
+      }
+    }, 1000);
+    return;
+  }
   state.timer = setInterval(() => {
     state.remain -= 1;
     $("#timer").textContent = String(state.remain);
@@ -337,6 +427,12 @@ function drawQuestion() {
       lock(null);
     }
   }, 1000);
+}
+
+function formatRemain(s) {
+  s = Math.max(0, s|0);
+  const m = Math.floor(s/60), r = s%60;
+  return `${m}:${String(r).padStart(2,"0")}`;
 }
 
 function lock(choice) {
@@ -355,6 +451,18 @@ function lock(choice) {
     if (choice && key === choice) el.classList.add("picked");
     el.disabled = true;
   });
+  const ok = choice === correct;
+  if (state.mode === "exam") {
+    if (!choice) state.score.skip++;
+    else if (ok) state.score.ok++;
+    else state.score.no++;
+    state.examAnswers.push({ q, choice, correct, ok, correctText });
+    recordAnswer(q.id, q.article || (state.article && state.article.key), ok);
+    if (state.idx + 1 >= state.queue.length) finishExam(false);
+    else { state.idx += 1; drawQuestion(); }
+    return;
+  }
+
   const box = $("#result");
   box.classList.remove("hidden");
   let verdict, cls;
@@ -363,15 +471,18 @@ function lock(choice) {
     verdict = "زمان تمام شد — این سوال دوباره در صف می‌آید";
     cls = "no";
     queueRetry(q);
-  } else if (choice === correct) {
+    recordAnswer(q.id, q.article || (state.article && state.article.key), false);
+  } else if (ok) {
     state.score.ok++;
     verdict = "درست زدی";
     cls = "ok";
+    recordAnswer(q.id, q.article || (state.article && state.article.key), true);
   } else {
     state.score.no++;
     verdict = "غلط بود — این سوال دوباره در صف می‌آید تا درست بزنی";
     cls = "no";
     queueRetry(q);
+    recordAnswer(q.id, q.article || (state.article && state.article.key), false);
   }
 
   const laws = parseLaws(q.laws);
@@ -432,8 +543,73 @@ function prevQ() {
   drawQuestion();
 }
 
+function finishExam(timeout) {
+  clearInterval(state.timer);
+  // unanswered remaining
+  while (state.examAnswers.length < state.queue.length) {
+    const q = state.queue[state.examAnswers.length];
+    state.examAnswers.push({ q, choice: null, correct: q.answer, ok: false, correctText: q.answer_text });
+    state.score.skip++;
+  }
+  const { all, p } = packProg();
+  p.examUsed = Array.from(new Set([...(p.examUsed||[]), ...state.queue.map(q => String(q.id))]));
+  all[state.packId] = p;
+  saveProg(all);
+  const s = state.score;
+  $("#exam-score").textContent = `${timeout ? "وقت تمام شد. " : ""}درست ${s.ok} از ${state.queue.length} · غلط ${s.no} · سفید ${s.skip}`;
+  $("#exam-sheet").innerHTML = state.examAnswers.map((row,i) => `
+    <div class="law-mine">
+      <div class="verdict ${row.ok ? "ok" : "no"}">${i+1}. ${row.ok ? "درست" : "غلط / نزده"}</div>
+      <p>${escapeHtml(row.q.question)}</p>
+      <p class="sub">پاسخ تو: ${row.choice || "—"} · صحیح: ${row.correct} — ${escapeHtml(row.correctText || row.q.answer_text || "")}</p>
+      <div class="explain">${escapeHtml(row.q.explain || "")}</div>
+    </div>
+  `).join("");
+  state.mode = "practice";
+  show("exam-result");
+}
+
+function allPackQuestions() {
+  return state.lesson.articles.flatMap(a => a.questions);
+}
+
+function openExamSetup() {
+  const { p } = packProg();
+  const all = allPackQuestions();
+  const used = new Set(p.examUsed || []);
+  const left = all.filter(q => !used.has(String(q.id)));
+  $("#exam-cycle-info").textContent = `از این بسته ${all.length} سوال است. در این دور ${used.size} تا در آزمون آمده. باقی‌مانده چرخه: ${left.length}. اگر باقی کمتر از تعداد درخواستی باشد، چرخه از نو می‌شود.`;
+  show("exam-setup");
+}
+
+function startExam() {
+  const diff = $("#exam-diff").value;
+  const n = Number($("#exam-n").value);
+  const min = Number($("#exam-min").value);
+  const { all, p } = packProg();
+  let pool = allPackQuestions();
+  if (diff !== "all") pool = pool.filter(q => q.difficulty === diff);
+  let used = new Set(p.examUsed || []);
+  let fresh = pool.filter(q => !used.has(String(q.id)));
+  if (fresh.length < n) {
+    // new cycle for this difficulty leftover
+    const still = pool.filter(q => !fresh.includes(q));
+    // reset used for those already consumed if not enough
+    p.examUsed = p.examUsed.filter(id => !pool.some(q => String(q.id)===id));
+    fresh = pool;
+    all[state.packId] = p; saveProg(all);
+  }
+  const pick = fresh.slice(0, n);
+  if (!pick.length) { alert("سوالی برای این سطح نماند."); return; }
+  state.mode = "exam";
+  state.examAnswers = [];
+  state.examRemain = min * 60;
+  startQuiz({ key: "آزمون", title: `${diff} · ${pick.length} سوال · ${min} دقیقه`, questions: pick });
+}
+
 function finish() {
   clearInterval(state.timer);
+  if (state.mode === "exam") { finishExam(false); return; }
   const s = state.score;
   const n = state.queue.length;
   $("#q-text").textContent = "تمام شد";
@@ -478,8 +654,33 @@ function escapeHtml(str="") {
   return String(str).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
 
-$("#btn-back-home").onclick = () => { clearInterval(state.timer); show("home"); };
-$("#btn-back-arts").onclick = () => { clearInterval(state.timer); show("articles"); };
+$("#btn-back-lessons").onclick = () => show("home");
+$("#btn-back-home").onclick = () => { clearInterval(state.timer); show("packs"); };
+$("#btn-back-arts").onclick = () => { clearInterval(state.timer); state.mode="practice"; show("articles"); renderArticles(); };
+$("#btn-exam").onclick = openExamSetup;
+$("#btn-back-exam-setup").onclick = () => show("articles");
+$("#btn-back-from-exam-res").onclick = () => { renderArticles(); show("articles"); };
+$("#btn-start-exam").onclick = startExam;
+$("#btn-reset-exam").onclick = () => {
+  if (!confirm("چرخه آزمون این بسته از نو شود؟")) return;
+  const { all, p } = packProg();
+  p.examUsed = [];
+  all[state.packId] = p; saveProg(all);
+  openExamSetup();
+};
+$("#btn-reset-pack").onclick = () => {
+  if (!confirm("پیشرفت این بسته (تست مواد + لایتنر) پاک شود؟ آزمون جداست.")) return;
+  const { all, p } = packProg();
+  p.articleStats = {}; p.qStats = {};
+  all[state.packId] = p; saveProg(all);
+  renderArticles();
+};
+$("#pack-repeats").onchange = () => {
+  const { all, p } = packProg();
+  p.repeats = Number($("#pack-repeats").value);
+  all[state.packId] = p; saveProg(all);
+  renderArticles();
+};
 $("#sort-mode").onchange = renderArticles;
 $("#btn-reveal").onclick = () => lock(null);
 $("#btn-next").onclick = nextQ;

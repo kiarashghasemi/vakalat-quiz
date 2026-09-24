@@ -3,51 +3,58 @@
     {
       "id": "madani",
       "name": "حقوق مدنی",
-      "file": "data/madani.json",
       "ready": false,
-      "count": 0
+      "count": 0,
+      "packs": []
     },
     {
       "id": "adm",
       "name": "آیین دادرسی مدنی",
-      "file": "data/adm.json",
       "ready": true,
-      "count": 188
+      "count": 188,
+      "packs": [
+        {
+          "id": "adm-1-25",
+          "name": "مواد ۱ تا ۲۵",
+          "file": "data/adm-1-25.json",
+          "count": 188
+        }
+      ]
     },
     {
       "id": "tejarat",
       "name": "حقوق تجارت",
-      "file": "data/tejarat.json",
       "ready": false,
-      "count": 0
+      "count": 0,
+      "packs": []
     },
     {
       "id": "jaza",
       "name": "حقوق جزا",
-      "file": "data/jaza.json",
       "ready": false,
-      "count": 0
+      "count": 0,
+      "packs": []
     },
     {
       "id": "adk",
       "name": "آیین دادرسی کیفری",
-      "file": "data/adk.json",
       "ready": false,
-      "count": 0
+      "count": 0,
+      "packs": []
     },
     {
       "id": "osul",
       "name": "اصول فقه",
-      "file": "data/osul.json",
       "ready": false,
-      "count": 0
+      "count": 0,
+      "packs": []
     },
     {
       "id": "motun",
       "name": "متون فقه",
-      "file": "data/motun.json",
       "ready": false,
-      "count": 0
+      "count": 0,
+      "packs": []
     }
   ]
 }
