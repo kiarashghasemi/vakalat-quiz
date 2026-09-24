@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>تست وکالت — مواد و سوالات</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="mark">ق</div>
+      <div>
+        <div>تست وکالت</div>
+        <div class="sub">سوالات دسته‌بندی‌شده بر اساس ماده</div>
+      </div>
+    </div>
+    <div class="sub">۶۰ ثانیه برای هر سوال</div>
+  </header>
+
+  <main class="wrap">
+    <section id="view-home">
+      <div class="hero">
+        <h1>هفت درس کنکور وکالت</h1>
+        <p>یک ماده را انتخاب کن، تعداد سوالاتش را ببین و تست بزن. بعد از ۶۰ ثانیه یا زودتر با انتخاب گزینه، پاسخنامه همان صفحه می‌آید. متن سوال و جواب‌ها دست‌نخورده است.</p>
+        <div class="upload">
+          <b>افزودن درس جدید از اکسل:</b>
+          <p class="sub" style="margin:6px 0 8px">فایل را مطابق قالب <code>data/آیین-دادرسی-مدنی.xlsx</code> بساز و همین‌جا انتخاب کن. نیازی به کدنویسی نیست.</p>
+          <input type="file" id="xlsx-input" accept=".xlsx,.xls,.csv" />
+        </div>
+      </div>
+      <div id="lessons" class="lessons"></div>
+    </section>
+
+    <section id="view-articles" class="hidden">
+      <div class="toolbar">
+        <button class="btn ghost" id="btn-back-home">← درس‌ها</button>
+        <button class="btn primary" id="btn-all">شروع همه سوالات درس</button>
+        <select id="sort-mode" class="btn">
+          <option value="hard">مرتب‌سازی: سخت‌تر اول</option>
+          <option value="count">مرتب‌سازی: تعداد سوال</option>
+          <option value="name">مرتب‌سازی: نام ماده</option>
+        </select>
+      </div>
+      <div class="hero" style="padding:18px 22px">
+        <h1 id="lesson-title" style="font-size:22px">درس</h1>
+        <p id="lesson-sub"></p>
+      </div>
+      <div id="articles" class="articles"></div>
+    </section>
+
+    <section id="view-quiz" class="hidden">
+      <div class="toolbar">
+        <button class="btn ghost" id="btn-back-arts">← مواد</button>
+        <span id="quiz-head" style="font-weight:800"></span>
+      </div>
+      <div class="quiz">
+        <div class="quiz-top">
+          <div>
+            <div id="q-progress-label" class="sub"></div>
+            <div id="q-badges" style="margin-top:6px"></div>
+          </div>
+          <div id="timer" class="timer">60</div>
+        </div>
+        <div class="progress"><span id="progress-bar"></span></div>
+        <p class="q-text" id="q-text"></p>
+        <div class="options" id="options"></div>
+        <div id="result" class="result-box hidden"></div>
+        <div class="toolbar" style="margin-top:16px">
+          <button class="btn" id="btn-reveal">نمایش پاسخ</button>
+          <button class="btn primary hidden" id="btn-next">سوال بعدی</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>برای گیت‌هاب + کلادفلر پیجز آماده است · فقط پوشه را پوش کنید</footer>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

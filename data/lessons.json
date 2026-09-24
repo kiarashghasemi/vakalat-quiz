@@ -1,0 +1,53 @@
+{
+  "lessons": [
+    {
+      "id": "madani",
+      "name": "حقوق مدنی",
+      "file": "data/madani.json",
+      "ready": false,
+      "count": 0
+    },
+    {
+      "id": "adm",
+      "name": "آیین دادرسی مدنی",
+      "file": "data/adm.json",
+      "ready": true,
+      "count": 49
+    },
+    {
+      "id": "tejarat",
+      "name": "حقوق تجارت",
+      "file": "data/tejarat.json",
+      "ready": false,
+      "count": 0
+    },
+    {
+      "id": "jaza",
+      "name": "حقوق جزا",
+      "file": "data/jaza.json",
+      "ready": false,
+      "count": 0
+    },
+    {
+      "id": "adk",
+      "name": "آیین دادرسی کیفری",
+      "file": "data/adk.json",
+      "ready": false,
+      "count": 0
+    },
+    {
+      "id": "osul",
+      "name": "اصول فقه",
+      "file": "data/osul.json",
+      "ready": false,
+      "count": 0
+    },
+    {
+      "id": "motun",
+      "name": "متون فقه",
+      "file": "data/motun.json",
+      "ready": false,
+      "count": 0
+    }
+  ]
+}
