@@ -16,6 +16,8 @@ const state = {
   shuffled: [],
   correctLetter: "A",
   lastView: "home",
+  originalCount: 0,
+  retryNote: false,
 };
 
 const views = {
@@ -211,6 +213,7 @@ function startQuiz(art, filter="all") {
   }
   state.queue = qs;
   state.idx = 0;
+  state.originalCount = qs.length;
   state.score = {ok:0, no:0, skip:0};
   $("#quiz-head").textContent = `${art.key} — ${art.title}${filter==="hard" ? " (فقط سخت)" : ""}`;
   show("quiz");
@@ -230,12 +233,17 @@ function drawQuestion() {
   state.shuffled = sh.mapped;
   state.correctLetter = sh.correctLetter;
   const total = state.queue.length;
-  $("#q-progress-label").textContent = `سوال ${state.idx+1} از ${total}`;
+  const extra = total - state.originalCount;
+  const qid = q.id ? ` · تکرار تا درست بزنی` : "";
+  $("#q-progress-label").textContent = extra > 0
+    ? `سوال ${state.idx+1} از ${total} (اصلی ${state.originalCount} + تکرار ${extra})`
+    : `سوال ${state.idx+1} از ${total}`;
   $("#progress-bar").style.width = `${((state.idx)/total)*100}%`;
   $("#timer").textContent = "60";
   $("#timer").className = "timer";
   $("#q-badges").innerHTML = `
     <span class="pill ${q.difficulty==="سخت"?"hard":q.difficulty==="متوسط"?"mid":"easy"}">${q.difficulty}</span>
+    ${q._retry ? `<span class="pill hard">تکرار سوال غلط</span>` : ""}
     ${q.is_similar ? `<span class="pill sim">شبیه هم · ${q.similar_count} مورد</span>` : ""}
   `;
   $("#q-text").textContent = q.question;
@@ -250,8 +258,10 @@ function drawQuestion() {
     box.appendChild(b);
   });
   $("#result").classList.add("hidden");
+  $("#nav-top").classList.add("hidden");
   $("#btn-next").classList.add("hidden");
   $("#btn-reveal").classList.remove("hidden");
+  syncPrevButtons();
   state.timer = setInterval(() => {
     state.remain -= 1;
     $("#timer").textContent = String(state.remain);
@@ -284,16 +294,18 @@ function lock(choice) {
   let verdict, cls;
   if (!choice) {
     state.score.skip++;
-    verdict = "زمان تمام شد";
+    verdict = "زمان تمام شد — این سوال دوباره در صف می‌آید";
     cls = "no";
+    queueRetry(q);
   } else if (choice === correct) {
     state.score.ok++;
     verdict = "درست زدی";
     cls = "ok";
   } else {
     state.score.no++;
-    verdict = "غلط بود";
+    verdict = "غلط بود — این سوال دوباره در صف می‌آید تا درست بزنی";
     cls = "no";
+    queueRetry(q);
   }
 
   const laws = parseLaws(q.laws);
@@ -317,9 +329,26 @@ function lock(choice) {
   });
 
   $("#btn-reveal").classList.add("hidden");
+  $("#nav-top").classList.remove("hidden");
   $("#btn-next").classList.remove("hidden");
-  $("#btn-next").textContent = state.idx + 1 >= state.queue.length ? "پایان و نتیجه" : "سوال بعدی";
+  const lastLabel = state.idx + 1 >= state.queue.length ? "پایان و نتیجه" : "سوال بعدی";
+  $("#btn-next").textContent = lastLabel;
+  $("#btn-next-top").textContent = lastLabel;
   $("#progress-bar").style.width = `${((state.idx+1)/state.queue.length)*100}%`;
+  syncPrevButtons();
+}
+
+function queueRetry(q) {
+  const copy = { ...q, options: { ...q.options }, _retry: true };
+  state.queue.push(copy);
+}
+
+function syncPrevButtons() {
+  const on = state.idx > 0;
+  ["#btn-prev", "#btn-prev-top"].forEach(sel => {
+    const b = $(sel);
+    if (b) b.disabled = !on;
+  });
 }
 
 function nextQ() {
@@ -328,6 +357,12 @@ function nextQ() {
     return;
   }
   state.idx += 1;
+  drawQuestion();
+}
+
+function prevQ() {
+  if (state.idx <= 0) return;
+  state.idx -= 1;
   drawQuestion();
 }
 
@@ -344,6 +379,8 @@ function finish() {
   `;
   $("#btn-next").classList.add("hidden");
   $("#btn-reveal").classList.add("hidden");
+  const nt = $("#nav-top");
+  if (nt) nt.classList.add("hidden");
 }
 
 function renderMyLaws() {
@@ -380,6 +417,9 @@ $("#btn-back-arts").onclick = () => { clearInterval(state.timer); show("articles
 $("#sort-mode").onchange = renderArticles;
 $("#btn-reveal").onclick = () => lock(null);
 $("#btn-next").onclick = nextQ;
+$("#btn-next-top").onclick = nextQ;
+$("#btn-prev").onclick = prevQ;
+$("#btn-prev-top").onclick = prevQ;
 $("#btn-all").onclick = () => startQuiz({
   key: "همه مواد",
   title: state.lesson.name,
