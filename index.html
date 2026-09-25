@@ -34,6 +34,11 @@
       <button class="btn" data-fs="22">خیلی بزرگ</button>
     </div>
     <div class="settings-row">
+      <label>قلم پاسخنامه</label>
+      <input type="range" id="explain-fs" min="13" max="28" value="16" style="width:100%" />
+      <div class="sub" id="explain-fs-val">۱۶ پیکسل</div>
+    </div>
+    <div class="settings-row">
       <label>رنگ زمینه</label>
       <div class="theme-dots">
         <button class="theme-dot" data-theme="paper" title="کاغذی" style="background:#f4f1ea"></button>
@@ -129,6 +134,15 @@
             <option selected>20</option>
             <option>30</option>
             <option>40</option>
+          </select>
+          <label>منبع</label>
+          <select id="exam-src" class="btn">
+            <option value="all">همه منابع</option>
+            <option value="exam">فقط آزمونی (کانون / مرکز / سراسری / ارشد)</option>
+            <option value="kanoon">کانون وکلا</option>
+            <option value="markaz">مرکز وکلا</option>
+            <option value="sarasari">سراسری / ارشد / دکتری</option>
+            <option value="talifi">تالیفی</option>
           </select>
         </div>
         <div class="toolbar">

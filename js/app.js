@@ -140,13 +140,18 @@ function syncStarBtn() {
 }
 
 function loadSettings() {
-  try { return Object.assign({fs:"17", theme:"paper"}, JSON.parse(localStorage.getItem(SET_KEY)||"{}")); }
-  catch { return {fs:"17", theme:"paper"}; }
+  try { return Object.assign({fs:"17", theme:"paper", efs:"16"}, JSON.parse(localStorage.getItem(SET_KEY)||"{}")); }
+  catch { return {fs:"17", theme:"paper", efs:"16"}; }
 }
 function applySettings() {
   const s = loadSettings();
   document.documentElement.style.setProperty("--fs", s.fs + "px");
   document.documentElement.style.setProperty("--qfs", (Number(s.fs) + 3) + "px");
+  document.documentElement.style.setProperty("--efs", (s.efs || 16) + "px");
+  const ev = $("#explain-fs-val");
+  const er = $("#explain-fs");
+  if (er) er.value = s.efs || 16;
+  if (ev) ev.textContent = (s.efs || 16) + " پیکسل";
   document.documentElement.setAttribute("data-theme", s.theme === "paper" ? "" : s.theme);
   if (s.theme === "paper") document.documentElement.removeAttribute("data-theme");
 }
@@ -617,10 +622,26 @@ function isSimilarQ(q) {
   return !!(q.is_similar || (q.similar_count && q.similar_count > 1));
 }
 
-function examPool(diff, includeSimilar) {
+function sourceKind(src="") {
+  const s = String(src);
+  if (s.includes("کانون")) return "kanoon";
+  if (s.includes("مرکز")) return "markaz";
+  if (s.includes("سراسری") || s.includes("ارشد") || s.includes("دکتری")) return "sarasari";
+  if (s && s !== "تالیفی") return "exam";
+  return "talifi";
+}
+function matchSource(q, filter) {
+  if (!filter || filter === "all") return true;
+  const k = sourceKind(q.source);
+  if (filter === "exam") return k !== "talifi";
+  return k === filter;
+}
+
+function examPool(diff, includeSimilar, srcFilter="all") {
   let pool = allPackQuestions();
   if (diff !== "all") pool = pool.filter(q => q.difficulty === diff);
   if (!includeSimilar) pool = pool.filter(q => !isSimilarQ(q));
+  if (srcFilter && srcFilter !== "all") pool = pool.filter(q => matchSource(q, srcFilter));
   return pool;
 }
 
@@ -630,19 +651,20 @@ function updateExamInfo() {
   const n = Number($("#exam-n").value);
   const includeSimilar = $("#exam-similar").checked;
   const fill = $("#exam-fill").checked;
+  const src = ($("#exam-src") && $("#exam-src").value) || "all";
   const { p } = packProg();
   const used = new Set(p.examUsed || []);
   const all = allPackQuestions();
-  const level = diff === "all" ? all : all.filter(q => q.difficulty === diff);
+  const level = (diff === "all" ? all : all.filter(q => q.difficulty === diff)).filter(q => matchSource(q, src));
   const sim = level.filter(isSimilarQ);
-  const pool = examPool(diff, includeSimilar);
+  const pool = examPool(diff, includeSimilar, src);
   const fresh = pool.filter(q => !used.has(String(q.id)));
   const others = all.filter(q => (diff === "all" || q.difficulty !== diff) && (includeSimilar || !isSimilarQ(q)));
   const othersFresh = others.filter(q => !used.has(String(q.id)));
   const have = fresh.length + (fill ? othersFresh.length : 0);
   $("#exam-cycle-info").textContent = `کل بسته ${all.length} سوال · در این چرخه آزمون ${used.size} سوال آمده · باقی کل چرخه ${all.length - used.size}`;
   $("#exam-level-info").innerHTML = `
-    سطح «${diff === "all" ? "ترکیبی" : diff}»: <b>${level.length}</b> سوال
+    منبع: ${$("#exam-src").selectedOptions[0].textContent} · سطح «${diff === "all" ? "ترکیبی" : diff}»: <b>${level.length}</b> سوال
     · مشابه هم: <b>${sim.length}</b>
     · غیرمشابه: <b>${level.length - sim.length}</b>
     · با فیلتر فعلی قابل استفاده: <b>${pool.length}</b>
@@ -664,9 +686,10 @@ function startExam() {
   const min = Number($("#exam-min").value);
   const includeSimilar = $("#exam-similar").checked;
   const fill = $("#exam-fill").checked;
+  const src = ($("#exam-src") && $("#exam-src").value) || "all";
   const { all, p } = packProg();
   const used = new Set(p.examUsed || []);
-  let pool = examPool(diff, includeSimilar);
+  let pool = examPool(diff, includeSimilar, src);
   let fresh = pool.filter(q => !used.has(String(q.id)));
   if (!fresh.length && pool.length) {
     p.examUsed = (p.examUsed || []).filter(id => !pool.some(q => String(q.id) === id));
@@ -678,6 +701,7 @@ function startExam() {
     let extra = allPackQuestions().filter(q => {
       if (pick.some(x => String(x.id) === String(q.id))) return false;
       if (!includeSimilar && isSimilarQ(q)) return false;
+      if (!matchSource(q, src)) return false;
       if (diff !== "all" && q.difficulty === diff) return false;
       return !used.has(String(q.id)) || true;
     });
@@ -753,7 +777,7 @@ $("#btn-back-lessons").onclick = () => show("home");
 $("#btn-back-home").onclick = () => { clearInterval(state.timer); show("packs"); };
 $("#btn-back-arts").onclick = () => { clearInterval(state.timer); state.mode="practice"; show("articles"); renderArticles(); };
 $("#btn-exam").onclick = openExamSetup;
-["exam-diff","exam-n","exam-similar","exam-fill"].forEach(id => {
+["exam-diff","exam-n","exam-similar","exam-fill","exam-src"].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener("change", updateExamInfo);
 });
@@ -805,6 +829,12 @@ $$("[data-fs]").forEach(b => b.onclick = () => {
 });
 $$("[data-theme]").forEach(b => b.onclick = () => {
   const s = loadSettings(); s.theme = b.dataset.theme;
+  localStorage.setItem(SET_KEY, JSON.stringify(s));
+  applySettings();
+});
+const efs = $("#explain-fs");
+if (efs) efs.addEventListener("input", () => {
+  const s = loadSettings(); s.efs = efs.value;
   localStorage.setItem(SET_KEY, JSON.stringify(s));
   applySettings();
 });
