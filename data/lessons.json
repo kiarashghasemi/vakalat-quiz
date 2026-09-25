@@ -11,14 +11,20 @@
       "id": "adm",
       "name": "آیین دادرسی مدنی",
       "ready": true,
-      "count": 188,
+      "count": 236,
       "packs": [
         {
           "id": "adm-1-25",
           "name": "مواد ۱ تا ۲۵",
           "file": "data/adm-1-25.json",
           "count": 188
-        }
+        },
+        {
+  "id": "adm-26-30",
+  "name": "مواد ۲۶ تا ۳۰",
+  "file": "data/adm-26-30.json",
+  "count": 48
+}
       ]
     },
     {
