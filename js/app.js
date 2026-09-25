@@ -125,7 +125,8 @@ function toggleImportant(q) {
     difficulty: q.difficulty,
     is_similar: q.is_similar,
     similar_count: q.similar_count,
-    lesson: state.lesson ? state.lesson.name : "",
+    lesson: q.lesson || currentSection().lesson,
+    pack: q.pack || currentSection().pack,
   });
   saveImportant(list);
   syncStarBtn();
@@ -218,7 +219,9 @@ function toggleSaveLaw(item, btn) {
       id,
       title: item.title,
       body: item.body,
-      lesson: state.lesson ? state.lesson.name : "",
+      lesson: currentSection().lesson,
+      pack: currentSection().pack,
+      article: (state.queue[state.idx] && state.queue[state.idx].article) || "",
       qid: state.queue[state.idx] ? state.queue[state.idx].id : "",
       at: Date.now(),
     });
@@ -291,6 +294,11 @@ async function openPack(pk) {
   state.lesson = await res.json();
   state.pack = pk;
   state.packId = pk.id;
+  const secLesson = state.lesson.lesson_name || (state.lessonMeta && state.lessonMeta.name) || "درس";
+  state.lesson.articles.forEach(a => a.questions.forEach(q => {
+    q.lesson = q.lesson || secLesson;
+    q.pack = q.pack || pk.name;
+  }));
   $("#lesson-title").textContent = `${state.lessonMeta ? state.lessonMeta.name + " / " : ""}${pk.name}`;
   const hardN = state.lesson.articles.reduce((s,a) => s + (a.hard||0), 0);
   $("#lesson-sub").textContent = `${state.lesson.count} سوال در ${state.lesson.articles.length} ماده · ${hardN} سخت`;
@@ -557,16 +565,48 @@ function finishExam(timeout) {
   saveProg(all);
   const s = state.score;
   $("#exam-score").textContent = `${timeout ? "وقت تمام شد. " : ""}درست ${s.ok} از ${state.queue.length} · غلط ${s.no} · سفید ${s.skip}`;
-  $("#exam-sheet").innerHTML = state.examAnswers.map((row,i) => `
+  $("#exam-sheet").innerHTML = state.examAnswers.map((row,i) => {
+    const on = isImportant(row.q.id);
+    return `
     <div class="law-mine">
       <div class="verdict ${row.ok ? "ok" : "no"}">${i+1}. ${row.ok ? "درست" : "غلط / نزده"}</div>
       <p>${escapeHtml(row.q.question)}</p>
       <p class="sub">پاسخ تو: ${row.choice || "—"} · صحیح: ${row.correct} — ${escapeHtml(row.correctText || row.q.answer_text || "")}</p>
       <div class="explain">${escapeHtml(row.q.explain || "")}</div>
-    </div>
-  `).join("");
+      <button class="btn star-btn ${on ? "on" : ""}" data-examstar="${i}">${on ? "★ در سوالات مهم" : "☆ افزودن به سوالات مهم"}</button>
+    </div>`;
+  }).join("");
+  $("#exam-sheet").querySelectorAll("[data-examstar]").forEach(btn => {
+    btn.onclick = () => {
+      const row = state.examAnswers[Number(btn.dataset.examstar)];
+      if (!row) return;
+      toggleImportant(row.q);
+      const on = isImportant(row.q.id);
+      btn.textContent = on ? "★ در سوالات مهم" : "☆ افزودن به سوالات مهم";
+      btn.classList.toggle("on", on);
+    };
+  });
   state.mode = "practice";
   show("exam-result");
+}
+
+function currentSection() {
+  return {
+    lesson: (state.lessonMeta && state.lessonMeta.name) || (state.lesson && state.lesson.lesson_name) || (state.lesson && state.lesson.name) || "بدون درس",
+    pack: (state.pack && state.pack.name) || "",
+  };
+}
+
+function groupBySection(list, keyLesson="lesson", keyPack="pack") {
+  const map = {};
+  list.forEach((item, i) => {
+    const lesson = item[keyLesson] || "بدون درس";
+    const pack = item[keyPack] || "بدون بسته";
+    if (!map[lesson]) map[lesson] = {};
+    if (!map[lesson][pack]) map[lesson][pack] = [];
+    map[lesson][pack].push({ item, i });
+  });
+  return map;
 }
 
 function allPackQuestions() {
@@ -678,14 +718,23 @@ function renderMyLaws() {
     box.innerHTML = `<p class="sub">هنوز قانونی ذخیره نکرده‌ای. بعد از دیدن پاسخ، دکمه قرمز «ارسال به قوانین من» را بزن.</p>`;
     return;
   }
-  box.innerHTML = list.map((item, i) => `
-    <div class="law-mine">
-      <h3>${escapeHtml(item.title)}</h3>
-      <div class="meta" style="margin:6px 0">${item.lesson || ""}</div>
-      <p>${escapeHtml(item.body)}</p>
-      <button class="btn" data-del="${i}" style="margin-top:10px">حذف</button>
-    </div>
-  `).join("");
+  const grouped = groupBySection(list);
+  let html = "";
+  Object.keys(grouped).forEach(lesson => {
+    html += `<h2 style="margin:18px 0 8px">${escapeHtml(lesson)}</h2>`;
+    Object.keys(grouped[lesson]).forEach(pack => {
+      html += `<h3 class="sub" style="margin:8px 0">${escapeHtml(pack)} · ${grouped[lesson][pack].length} مورد</h3>`;
+      grouped[lesson][pack].forEach(({ item, i }) => {
+        html += `<div class="law-mine">
+          <h3>${escapeHtml(item.title)}</h3>
+          <div class="meta" style="margin:6px 0">${escapeHtml(item.article || "")}</div>
+          <p>${escapeHtml(item.body)}</p>
+          <button class="btn" data-del="${i}" style="margin-top:10px">حذف</button>
+        </div>`;
+      });
+    });
+  });
+  box.innerHTML = html;
   box.querySelectorAll("[data-del]").forEach(btn => {
     btn.onclick = () => {
       const arr = loadMine();
@@ -782,19 +831,37 @@ function renderImportant() {
     box.innerHTML = `<p class="sub">ستاره هیچ سوالی را نزده‌ای. وسط تست دکمه «سوال مهم» را بزن.</p>`;
     return;
   }
-  box.innerHTML = list.map((q,i) => `
-    <div class="law-mine">
-      <div class="meta">${q.article || ""} · ${q.difficulty || ""}</div>
-      <p style="margin-top:6px">${escapeHtml(q.question)}</p>
-      <button class="btn" data-impdel="${i}" style="margin-top:10px">حذف از مهم‌ها</button>
-    </div>
-  `).join("");
+  const grouped = groupBySection(list);
+  let html = "";
+  Object.keys(grouped).forEach(lesson => {
+    const flat = Object.values(grouped[lesson]).flat();
+    html += `<div class="toolbar"><h2 style="margin:0">${escapeHtml(lesson)}</h2>
+      <button class="btn" data-quizlesson="${escapeHtml(lesson)}">تست این درس</button></div>`;
+    Object.keys(grouped[lesson]).forEach(pack => {
+      html += `<h3 class="sub" style="margin:8px 0">${escapeHtml(pack)} · ${grouped[lesson][pack].length} سوال</h3>`;
+      grouped[lesson][pack].forEach(({ item, i }) => {
+        html += `<div class="law-mine">
+          <div class="meta">${escapeHtml(item.article || "")} · ${escapeHtml(item.difficulty || "")}</div>
+          <p style="margin-top:6px">${escapeHtml(item.question)}</p>
+          <button class="btn" data-impdel="${i}" style="margin-top:10px">حذف از مهم‌ها</button>
+        </div>`;
+      });
+    });
+  });
+  box.innerHTML = html;
   box.querySelectorAll("[data-impdel]").forEach(btn => {
     btn.onclick = () => {
       const arr = loadImportant();
       arr.splice(Number(btn.dataset.impdel), 1);
       saveImportant(arr);
       renderImportant();
+    };
+  });
+  box.querySelectorAll("[data-quizlesson]").forEach(btn => {
+    btn.onclick = () => {
+      const name = btn.dataset.quizlesson;
+      const qs = loadImportant().filter(q => (q.lesson || "بدون درس") === name);
+      startQuiz({ key: "سوالات مهم", title: name, questions: qs });
     };
   });
 }
