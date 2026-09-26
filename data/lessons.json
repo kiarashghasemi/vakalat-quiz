@@ -19,11 +19,6 @@
       "count": 77
     },
         {
-  "id": "madani",
-  "name": "حقوق مدنی",
-  "ready": true,
-  "count": 37,
-  "packs": [
     { "id": "madani-1", "name": "تعریف مفاهیم اصلی", "file": "data/madani-1.json", "count": 37 }
  
       ]
