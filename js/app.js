@@ -62,9 +62,10 @@ function recordAnswer(qid, artKey, ok) {
   a.total += 1;
   if (ok) a.correct += 1;
   p.articleStats[artKey] = a;
-  const q = p.qStats[qid] || { streak: 0, times: 0 };
+  const q = p.qStats[qid] || { streak: 0, times: 0, everCorrect: false };
   q.times += 1;
   q.streak = ok ? (q.streak || 0) + 1 : 0;
+  if (ok) q.everCorrect = true;
   p.qStats[qid] = q;
   all[state.packId] = p;
   saveProg(all);
@@ -326,12 +327,16 @@ function renderArticles() {
   const repeats = p.repeats || 8;
 
   arts.forEach(art => {
-    const st = p.articleStats[art.key] || { correct: 0, total: 0 };
+    const rightN = art.questions.filter(q => {
+      const stq = p.qStats[q.id] || {};
+      return !!(stq.everCorrect || stq.streak > 0);
+    }).length;
+    const triedN = art.questions.filter(q => (p.qStats[q.id] || {}).times > 0).length;
     const mastered = art.questions.filter(q => (p.qStats[q.id] || {}).streak >= repeats).length;
     const el = document.createElement("div");
     el.className = "card";
-    const done = st.total > 0
-      ? `<span class="pill easy">زده شده ${st.correct}/${st.total} · لایتنر ${mastered}/${art.count}</span>`
+    const done = triedN > 0
+      ? `<span class="pill easy">درست ${rightN}/${art.count} · مانده ${art.count - rightN} · لایتنر ${mastered}/${art.count}</span>`
       : `<span class="pill">هنوز نزده‌ای</span>`;
     el.innerHTML = `
       <h3>${art.key}</h3>
