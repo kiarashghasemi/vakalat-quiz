@@ -4,14 +4,20 @@
       "id": "madani",
       "name": "حقوق مدنی",
       "ready": true,
-      "count": 48,
+      "count": 125,
       "packs": [
         {
           "id": "madani-11-28",
           "name": "مواد ۱۱ تا ۲۸",
           "file": "data/madani-11-28.json",
           "count": 48
-        }
+        },
+        {
+      "id": "madani-29-145",
+      "name": "مواد ۲۹ تا ۱۴۵",
+      "file": "data/madani-29-145.json",
+      "count": 77
+    }
       ]
     },
     {
