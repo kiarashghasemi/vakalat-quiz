@@ -1,11 +1,18 @@
 {
   "lessons": [
-    {
+        {
       "id": "madani",
       "name": "حقوق مدنی",
-      "ready": false,
-      "count": 0,
-      "packs": []
+      "ready": true,
+      "count": 48,
+      "packs": [
+        {
+          "id": "madani-11-28",
+          "name": "مواد ۱۱ تا ۲۸",
+          "file": "data/madani-11-28.json",
+          "count": 48
+        }
+      ]
     },
     {
       "id": "adm",
