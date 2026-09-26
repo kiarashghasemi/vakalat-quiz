@@ -870,9 +870,10 @@ function renderImportant() {
     Object.keys(grouped[lesson]).forEach(pack => {
       html += `<h3 class="sub" style="margin:8px 0">${escapeHtml(pack)} · ${grouped[lesson][pack].length} سوال</h3>`;
       grouped[lesson][pack].forEach(({ item, i }) => {
-        html += `<div class="law-mine">
-          <div class="meta">${escapeHtml(item.article || "")} · ${escapeHtml(item.difficulty || "")}</div>
+        html += `<div class="law-mine imp-card" data-impopen="${i}" style="cursor:pointer">
+          <div class="meta">${escapeHtml(item.article || "")} · ${escapeHtml(item.difficulty || "")} · ${escapeHtml(item.source || "")} · بزن تا کامل باز شود</div>
           <p style="margin-top:6px">${escapeHtml(item.question)}</p>
+          <div class="imp-full hidden" id="imp-full-${i}"></div>
           <button class="btn" data-impdel="${i}" style="margin-top:10px">حذف از مهم‌ها</button>
         </div>`;
       });
@@ -880,11 +881,56 @@ function renderImportant() {
   });
   box.innerHTML = html;
   box.querySelectorAll("[data-impdel]").forEach(btn => {
-    btn.onclick = () => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
       const arr = loadImportant();
       arr.splice(Number(btn.dataset.impdel), 1);
       saveImportant(arr);
       renderImportant();
+    };
+  });
+  box.querySelectorAll("[data-impopen]").forEach(card => {
+    card.onclick = (e) => {
+      if (e.target.closest("[data-impdel],[data-savelaw]")) return;
+      const i = Number(card.dataset.impopen);
+      const panel = card.querySelector(".imp-full");
+      if (!panel) return;
+      if (!panel.classList.contains("hidden") && panel.innerHTML) {
+        panel.classList.add("hidden");
+        return;
+      }
+      const q = loadImportant()[i];
+      if (!q) return;
+      const letters = ["A","B","C","D"];
+      const opts = letters.map(L => {
+        const t = (q.options && q.options[L]) || "";
+        const ok = L === (q.answer || "").toUpperCase();
+        return `<div class="opt ${ok ? "ok" : ""}"><b>${L})</b> ${escapeHtml(t)}${ok ? " ✓" : ""}</div>`;
+      }).join("");
+      const laws = parseLaws(q.laws).map((item, li) => `
+        <div class="law-card">
+          <strong>${escapeHtml(item.title)}</strong>
+          <p>${escapeHtml(item.body)}</p>
+          <button class="btn" data-savelaw="${i}:${li}">ارسال به قوانین من</button>
+        </div>`).join("") || `<p class="sub">قانون مرتبطی ذخیره نشده.</p>`;
+      panel.innerHTML = `
+        <div class="options" style="margin-top:10px">${opts}</div>
+        <div class="result-box" style="margin-top:10px">
+          <div class="verdict ok">پاسخ صحیح: ${escapeHtml(q.answer || "")} — ${escapeHtml(q.answer_text || "")}</div>
+          <div class="explain">${escapeHtml(q.explain || "")}</div>
+        </div>
+        <div class="laws" style="margin-top:10px">${laws}</div>
+      `;
+      panel.classList.remove("hidden");
+      panel.querySelectorAll("[data-savelaw]").forEach(b => {
+        b.onclick = (ev) => {
+          ev.stopPropagation();
+          const [qi, li] = b.dataset.savelaw.split(":").map(Number);
+          const qq = loadImportant()[qi];
+          const item = parseLaws(qq.laws)[li];
+          if (item) toggleSaveLaw(item, b);
+        };
+      });
     };
   });
   box.querySelectorAll("[data-quizlesson]").forEach(btn => {
