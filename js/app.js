@@ -35,6 +35,7 @@ const views = {
   quiz: $("#view-quiz"),
   laws: $("#view-laws"),
   important: $("#view-important"),
+  search: $("#view-search"),
   "exam-setup": $("#view-exam-setup"),
   "exam-result": $("#view-exam-result"),
 };
@@ -1033,3 +1034,240 @@ function rowsToLesson(name, rows) {
 }
 
 boot();
+
+/* ===== جستجو ===== */
+const searchState = { index: null, loading: null, lastView: "home", results: [] };
+
+function normFa(s) {
+  return String(s || "")
+    .replace(/[\u064B-\u0652\u0670]/g, "")
+    .replace(/[يى]/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[آأإٱ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ی")
+    .replace(/\u200c/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function parseQuery(raw) {
+  const phrases = [];
+  const rest = String(raw || "").replace(/["«»“”]([^"«»“”]+)["«»“”]/g, (_, p) => {
+    phrases.push(normFa(p));
+    return " ";
+  });
+  const tokens = normFa(rest).split(" ").filter(t => t.length > 1 || /^\d+$/.test(t));
+  return { phrases, tokens, raw: normFa(raw) };
+}
+
+async function ensureSearchIndex() {
+  if (searchState.index) return searchState.index;
+  if (searchState.loading) return searchState.loading;
+  searchState.loading = (async () => {
+    const lessons = state.lessons || [];
+    const jobs = [];
+    lessons.forEach(ls => (ls.packs || []).forEach(pk => {
+      jobs.push(fetch(pk.file).then(r => r.json()).then(pack => ({ ls, pk, pack })).catch(() => null));
+    }));
+    const loaded = (await Promise.all(jobs)).filter(Boolean);
+    const index = [];
+    loaded.forEach(({ ls, pk, pack }) => {
+      (pack.articles || []).forEach(art => {
+        (art.questions || []).forEach(q => {
+          const optText = ["A","B","C","D"].map(L => (q.options && q.options[L]) || "").join(" ");
+          const blob = [q.question, optText, q.explain, q.laws, q.article, q.article_title, q.source, q.id, ls.name, pk.name].join(" ");
+          index.push({
+            q, lesson: ls.name, lessonId: ls.id, pack: pk.name, packId: pk.id,
+            article: q.article || art.key || "",
+            nBlob: normFa(blob),
+            nQ: normFa(q.question),
+            nArt: normFa((q.article || "") + " " + (q.article_title || "")),
+            nOpt: normFa(optText),
+            nExp: normFa((q.explain || "") + " " + (q.laws || "")),
+            nSrc: normFa(q.source || ""),
+            nId: normFa(String(q.id || "")),
+          });
+        });
+      });
+    });
+    searchState.index = index;
+    searchState.loading = null;
+    return index;
+  })();
+  return searchState.loading;
+}
+
+function scoreHit(row, parsed) {
+  let score = 0;
+  const has = (field, token) => field.includes(token);
+  if (parsed.raw && row.nId === parsed.raw.replace(/\s/g, "")) score += 200;
+  if (parsed.raw && row.nQ.includes(parsed.raw)) score += 60;
+  for (const ph of parsed.phrases) {
+    if (!ph) continue;
+    if (row.nQ.includes(ph)) score += 50;
+    else if (row.nArt.includes(ph)) score += 30;
+    else if (row.nOpt.includes(ph) || row.nExp.includes(ph)) score += 18;
+    else return 0;
+  }
+  if (!parsed.tokens.length && parsed.phrases.length) return score;
+  if (!parsed.tokens.length && !parsed.phrases.length) return 0;
+  for (const t of parsed.tokens) {
+    let hit = 0;
+    if (row.nQ.includes(t)) hit += 20;
+    if (row.nArt.includes(t)) hit += 16;
+    if (row.nOpt.includes(t)) hit += 8;
+    if (row.nExp.includes(t)) hit += 6;
+    if (row.nSrc.includes(t)) hit += 10;
+    if (row.nId.includes(t)) hit += 25;
+    if (!hit) return 0;
+    score += hit;
+  }
+  if (row.nQ.includes(parsed.raw) && parsed.raw.length > 4) score += 12;
+  return score;
+}
+
+function highlight(text, parsed) {
+  let html = escapeHtml(text || "");
+  const terms = [...parsed.phrases, ...parsed.tokens].filter(Boolean)
+    .sort((a,b) => b.length - a.length);
+  for (const t of terms) {
+    if (t.length < 2 && !/^\d+$/.test(t)) continue;
+    const re = new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    html = html.replace(re, m => `<mark class="search-hit">${m}</mark>`);
+  }
+  return html;
+}
+
+function snippet(text, parsed, len=140) {
+  const raw = String(text || "");
+  const n = normFa(raw);
+  const terms = [...parsed.phrases, ...parsed.tokens];
+  let at = -1;
+  for (const t of terms) {
+    const i = n.indexOf(t);
+    if (i >= 0 && (at < 0 || i < at)) at = i;
+  }
+  if (at < 0) return highlight(raw.slice(0, len) + (raw.length > len ? "…" : ""), parsed);
+  const start = Math.max(0, at - 40);
+  const cut = raw.slice(start, start + len);
+  return (start ? "…" : "") + highlight(cut, parsed) + (start + len < raw.length ? "…" : "");
+}
+
+function sourceKindLocal(src="") {
+  const s = String(src);
+  if (s.includes("کانون")) return "kanoon";
+  if (s.includes("مرکز")) return "markaz";
+  if (s.includes("سراسری") || s.includes("ارشد") || s.includes("دکتری")) return "sarasari";
+  if (s && s !== "تالیفی") return "exam";
+  return "talifi";
+}
+
+async function runSearch() {
+  const box = $("#search-results");
+  const meta = $("#search-meta");
+  const q = ($("#search-q").value || "").trim();
+  if (!q) { meta.textContent = "چیزی بنویس."; box.innerHTML = ""; return; }
+  meta.textContent = "در حال آماده‌سازی فهرست…";
+  const index = await ensureSearchIndex();
+  const parsed = parseQuery(q);
+  const lesson = $("#search-lesson").value;
+  const diff = $("#search-diff").value;
+  const src = $("#search-src").value;
+  const hits = [];
+  for (const row of index) {
+    if (lesson !== "all" && row.lessonId !== lesson) continue;
+    if (diff !== "all" && row.q.difficulty !== diff) continue;
+    if (src !== "all") {
+      const k = sourceKindLocal(row.q.source);
+      if (src === "exam" ? k === "talifi" : k !== src) continue;
+    }
+    const sc = scoreHit(row, parsed);
+    if (sc > 0) hits.push({ row, sc });
+  }
+  hits.sort((a,b) => b.sc - a.sc || String(a.row.q.id).localeCompare(String(b.row.q.id)));
+  searchState.results = hits.map(h => h.row);
+  meta.textContent = `${hits.length} نتیجه از ${index.length} سوال`;
+  if (!hits.length) {
+    box.innerHTML = `<p class="sub">چیزی پیدا نشد. کلمه کوتاه‌تر بزن یا فیلتر را بردار.</p>`;
+    return;
+  }
+  box.innerHTML = hits.slice(0, 80).map((h, i) => {
+    const r = h.row;
+    return `<div class="law-mine search-card" data-sopen="${i}">
+      <div class="meta">${escapeHtml(r.lesson)} · ${escapeHtml(r.pack)} · ${escapeHtml(r.article)} · ${escapeHtml(r.q.difficulty || "")} · ${escapeHtml(r.q.source || "")}</div>
+      <p class="search-snippet">${snippet(r.q.question, parsed, 180)}</p>
+      <div class="search-full hidden" id="sfull-${i}"></div>
+    </div>`;
+  }).join("");
+  box.querySelectorAll("[data-sopen]").forEach(card => {
+    card.onclick = () => openSearchHit(card);
+  });
+}
+
+function openSearchHit(card) {
+  const i = Number(card.dataset.sopen);
+  const panel = card.querySelector(".search-full");
+  if (!panel) return;
+  if (!panel.classList.contains("hidden") && panel.innerHTML) {
+    panel.classList.add("hidden");
+    return;
+  }
+  const row = searchState.results[i];
+  if (!row) return;
+  const q = row.q;
+  const parsed = parseQuery($("#search-q").value || "");
+  const letters = ["A","B","C","D"];
+  const opts = letters.map(L => {
+    const t = (q.options && q.options[L]) || "";
+    const ok = L === (q.answer || "").toUpperCase();
+    return `<div class="opt ${ok ? "ok" : ""}"><b>${L})</b> ${highlight(t, parsed)}${ok ? " ✓" : ""}</div>`;
+  }).join("");
+  const laws = parseLaws(q.laws).map(item => `
+    <div class="law-card"><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.body)}</p></div>
+  `).join("") || `<p class="sub">قانون مرتبطی نیست.</p>`;
+  panel.innerHTML = `
+    <p class="q-text">${highlight(q.question, parsed)}</p>
+    <div class="options">${opts}</div>
+    <div class="result-box" style="margin-top:10px">
+      <div class="verdict ok">پاسخ: ${escapeHtml(q.answer || "")} — ${escapeHtml(q.answer_text || "")}</div>
+      <div class="explain">${highlight(q.explain || "", parsed)}</div>
+    </div>
+    <div class="laws" style="margin-top:10px">${laws}</div>
+  `;
+  panel.classList.remove("hidden");
+}
+
+function fillSearchLessons() {
+  const sel = $("#search-lesson");
+  if (!sel) return;
+  const cur = sel.value || "all";
+  sel.innerHTML = `<option value="all">همه درس‌ها</option>` +
+    (state.lessons || []).filter(ls => ls.ready).map(ls =>
+      `<option value="${escapeHtml(ls.id)}">${escapeHtml(ls.name)}</option>`).join("");
+  sel.value = cur;
+}
+
+$("#btn-search").onclick = () => {
+  const cur = [...document.querySelectorAll("main > section")].find(s => !s.classList.contains("hidden"));
+  searchState.lastView = cur ? cur.id.replace("view-","") : "home";
+  fillSearchLessons();
+  show("search");
+  setTimeout(() => $("#search-q") && $("#search-q").focus(), 50);
+};
+$("#btn-back-from-search").onclick = () => show(searchState.lastView || "home");
+$("#btn-do-search").onclick = runSearch;
+$("#search-q").addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
+["search-lesson","search-diff","search-src"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("change", () => { if (($("#search-q").value||"").trim()) runSearch(); });
+});
+$("#btn-search-quiz").onclick = () => {
+  const qs = searchState.results.map(r => r.q);
+  if (!qs.length) { alert("اول جستجو کن."); return; }
+  startQuiz({ key: "نتایج جستجو", title: $("#search-q").value || "جستجو", questions: qs });
+};
+

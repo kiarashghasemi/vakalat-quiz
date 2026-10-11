@@ -18,6 +18,7 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="btn primary" id="btn-search">جستجو</button>
       <button class="btn" id="btn-important">سوالات مهم <span class="badge-count" id="imp-count">0</span></button>
       <button class="btn" id="btn-my-laws">قوانین من <span class="badge-count" id="laws-count">0</span></button>
       <button class="btn" id="btn-settings">تنظیمات</button>
@@ -51,6 +52,45 @@
   </div>
 
   <main class="wrap">
+    <section id="view-search" class="hidden">
+      <div class="toolbar">
+        <button class="btn ghost" id="btn-back-from-search">← برگشت</button>
+        <button class="btn primary" id="btn-search-quiz">تست همین نتایج</button>
+      </div>
+      <div class="hero" style="padding:18px 22px">
+        <h1 style="font-size:22px">جستجو در همه سوالات</h1>
+        <p class="sub">بین سوال، گزینه‌ها، پاسخنامه، مواد قانونی، نام ماده و منبع. چند کلمه با هم، یا عبارت داخل «گیومه». ی/ي و ک/ك یکی حساب می‌شوند.</p>
+        <div class="search-bar">
+          <input id="search-q" type="search" placeholder="مثلاً صلاحیت محلی، ماده ۲۰، سرقفلی، کانون ۱۴۰۴…" autocomplete="off" />
+          <button class="btn primary" id="btn-do-search">بگرد</button>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <label class="sub">درس</label>
+          <select id="search-lesson" class="btn">
+            <option value="all">همه درس‌ها</option>
+          </select>
+          <label class="sub">سطح</label>
+          <select id="search-diff" class="btn">
+            <option value="all">همه</option>
+            <option value="سخت">سخت</option>
+            <option value="متوسط">متوسط</option>
+            <option value="آسان">آسان</option>
+          </select>
+          <label class="sub">منبع</label>
+          <select id="search-src" class="btn">
+            <option value="all">همه</option>
+            <option value="exam">فقط آزمونی</option>
+            <option value="kanoon">کانون</option>
+            <option value="markaz">مرکز وکلا</option>
+            <option value="sarasari">سراسری / ارشد / دکتری</option>
+            <option value="talifi">تالیفی</option>
+          </select>
+        </div>
+        <p id="search-meta" class="sub" style="margin-top:8px"></p>
+      </div>
+      <div id="search-results"></div>
+    </section>
+
     <section id="view-home">
       <div class="hero">
         <h1>هفت درس کنکور وکالت</h1>
